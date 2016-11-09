@@ -1,0 +1,15 @@
+# pants stuff
+.pants.d
+dist
+.pids
+.pants.workdir.file_lock
+.cache
+
+# intellij stuff
+.idea
+*.iml
+target
+
+# vim stuff
+*.swp
+
