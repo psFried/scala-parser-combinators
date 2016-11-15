@@ -116,6 +116,44 @@ class ParsersTest extends path.FunSpec with StringParsers {
         assert("HH" === result.remaining)
       }
     }
+
+    describe("json") {
+
+      val jsonString = map(sequence(exactMatch('"'), anyExcept('"'), exactMatch('"'))){values =>
+        values(1) // take just the middle value
+      }
+
+      val digit = '0'.to('9')
+
+      val jsonInt = map(charRange(digit))(_.toInt)
+
+      val jsonFloat = map(
+        sequence(
+          charRange(digit),
+          exactMatch('.'),
+          charRange(digit)
+        )
+      ){sequence =>
+        sequence.mkString.toDouble
+      }
+
+      it("parses a json string") {
+        val input = "\"theString\""
+        val result = jsonString.apply(input).right.get
+        assert("theString" === result.value)
+      }
+
+      it("parses an integer") {
+        val input = "12345"
+        val result = jsonInt.apply(input).right.get
+        assert(12345 === result.value)
+      }
+
+      it("parses a float") {
+        val result = jsonFloat("123.34").right.get
+        assert(123.34 === result.value)
+      }
+    }
   }
 
 }

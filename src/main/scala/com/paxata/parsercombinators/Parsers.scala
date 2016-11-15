@@ -1,5 +1,7 @@
 package com.paxata.parsercombinators
 
+import scala.collection.immutable.NumericRange
+
 trait Parsers {
 
   type Input
@@ -52,6 +54,29 @@ trait Parsers {
     }
   }
 
+  def sequence[T](parsers: Parser[T]*): Parser[Seq[T]] = {
+    (input: Input) => {
+      var remainingInput = input
+      var results = Seq[T]()
+      var errorResult: Option[ParseResult[Seq[T]]] = None
+
+      val parserIter = parsers.iterator
+      while (parserIter.hasNext && errorResult.isEmpty) {
+        parserIter.next().apply(remainingInput) match {
+          case Right(success) => {
+            remainingInput = success.remaining
+            results = results :+ success.value
+          }
+          case Left(error) => {
+            errorResult = Some(createError(error.location))
+          }
+        }
+      }
+
+      errorResult.getOrElse(createSuccess(remainingInput, results))
+    }
+  }
+
   def many0[T](parser: Parser[T]): Parser[Seq[T]] = {
     (input: Input) => {
       var results = Seq[T]()
@@ -73,6 +98,31 @@ trait Parsers {
     }
   }
 
+  def many1[T](parser: Parser[T]): Parser[Seq[T]] = {
+    (input: Input) => {
+      var results = Seq[T]()
+      var remainingInput = input
+
+      var finalResult: ParseResult[Seq[T]] = null
+      while (finalResult == null) {
+        parser.apply(remainingInput) match {
+          case Right(success) => {
+            results = results :+ success.value
+            remainingInput = success.remaining
+          }
+          case Left(error) if results.isEmpty => {
+            finalResult = createError(error.location)
+          }
+          case Left(error)  => {
+            finalResult = createSuccess(remainingInput, results)
+          }
+        }
+      }
+      finalResult
+    }
+  }
+
+
   def createError[T](location: Int): ParseResult[T] = {
     Left(ParseError(location))
   }
@@ -89,11 +139,31 @@ trait StringParsers extends Parsers {
     input.substring(amount)
   }
 
-//  def matches(regex: String): Parser[String] = {
-//    (Input) => {
-//
-//    }
-//  }
+  def whitespace(): Parser[String] = {
+    anyChars(' ', '\t', '\n') //OK, so there's much more professional ways of doing this
+  }
+
+  def charRange(range: NumericRange.Inclusive[Char]): Parser[String] = {
+    (input: Input) => {
+      val result = input.toStream.takeWhile(char => range.containsTyped(char)).mkString
+      if (!result.isEmpty()) {
+        createSuccess(advance(input, result.length), result)
+      } else {
+        createError(0)
+      }
+    }
+  }
+
+  def exactMatch(char: Char): Parser[String] = {
+    anyChars(char)
+  }
+
+  def anyExcept(chars: Char*): Parser[String] = {
+    (input: Input) => {
+      val result = input.toStream.takeWhile(c => !chars.contains(c)).mkString
+      createSuccess(advance(input, result.length), result)
+    }
+  }
 
   def anyChars(chars: Char*): Parser[String] = {
     (input: Input) => {
