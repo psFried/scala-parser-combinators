@@ -12,7 +12,66 @@ trait Parsers {
 
   def run[T](input: Input, parser: Parser[T]): T = ???
 
-  def oneOf[T](parsers: Parser[T]*): ParseResult[T] = ???
+  def oneOf[T](parsers: Parser[T]*): Parser[T] = {
+    (input: Input) => {
+      val results = parsers.toStream.map{parser =>
+        parser.apply(input)
+      }
+
+      results.find(_.isRight).getOrElse(results.maxBy(_.left.get.location))
+    }
+  }
+
+  def map[T, R](parser: Parser[T])(mapper: (T) => R): Parser[R] = {
+    (input: Input) => {
+      parser.apply(input) match {
+        case Left(error) => {
+          Left(error)
+        }
+        case Right(success) => {
+          createSuccess(success.remaining, mapper.apply(success.value))
+        }
+      }
+    }
+  }
+
+  def map2[T, R, S](parser1: Parser[T], parser2: Parser[R])(mapper: ((T, R)) => S): Parser[S] = {
+    map(both(parser1, parser2))(mapper)
+  }
+
+  def both[T, R](parser1: Parser[T], parser2: Parser[R]): Parser[(T, R)] = {
+    (input: Input) => {
+      parser1.apply(input) match {
+        case Right(success) => {
+          map(parser2){parser2Value =>
+            (success.value, parser2Value)
+          }.apply(success.remaining)
+        }
+        case Left(error) => createError(error.location)
+      }
+    }
+  }
+
+  def many0[T](parser: Parser[T]): Parser[Seq[T]] = {
+    (input: Input) => {
+      var results = Seq[T]()
+      var remainingInput = input
+
+      var finalResult: ParseResult[Seq[T]] = null
+      while (finalResult == null) {
+        parser.apply(remainingInput) match {
+          case Right(success) => {
+            results = results :+ success.value
+            remainingInput = success.remaining
+          }
+          case Left(error) => {
+            finalResult = createSuccess(remainingInput, results)
+          }
+        }
+      }
+      finalResult
+    }
+  }
 
   def createError[T](location: Int): ParseResult[T] = {
     Left(ParseError(location))
@@ -23,23 +82,42 @@ trait Parsers {
   }
 }
 
-object ByteArrayParsers extends Parsers {
-  type Input = Array[Byte]
+trait StringParsers extends Parsers {
+  type Input = String
 
   override def advance(input: Input, amount: Int): Input = {
-    input.slice(amount, input.length)
+    input.substring(amount)
+  }
+
+//  def matches(regex: String): Parser[String] = {
+//    (Input) => {
+//
+//    }
+//  }
+
+  def anyChars(chars: Char*): Parser[String] = {
+    (input: Input) => {
+      val stringVal = input.toStream.takeWhile(char => chars.contains(char)).mkString
+
+      if (!stringVal.isEmpty) {
+        createSuccess(advance(input, stringVal.length), stringVal)
+      } else {
+        createError(0)
+      }
+    }
   }
 
   def exactMatchString(toMatch: String): Parser[String] = {
-    (bytes: Input) => {
+    (input: Input) => {
       val strLen = toMatch.length()
 
-      val matches = toMatch.getBytes().toStream.zip(bytes.toStream).map((lr) => lr._1 == lr._2).takeWhile(_ == true).length
+      val matches = toMatch.toStream.zip(input.toStream).takeWhile((lr) => lr._1 == lr._2).length
 
       if (matches == strLen) {
-        createSuccess(advance(bytes, matches), toMatch)
+        createSuccess(advance(input, matches), toMatch)
       } else {
-        createError(matches + 1) //location should point to the first non-matching character
+        //location should point to the first non-matching character
+        createError(matches + 1)
       }
     }
   }
