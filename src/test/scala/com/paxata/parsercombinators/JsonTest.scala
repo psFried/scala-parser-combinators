@@ -22,6 +22,21 @@ class JsonTest extends path.FunSpec {
            }"""
 
       val result = Json(input)
+      assert(JsonNull === result.get("arrayKey.2"))
+      assert(JsonString("five") === result.get("objKey.nestedArray.2"))
+    }
+
+    it("isn't perfect ;)") {
+      /*
+      This is just to highlight the classic problem with parser combinators. This limitation isn't usually a big deal, but
+      it is something that must be acknowledged and dealt with. Otherwise you can open yourself to ddos attacks.
+      We can break this with an object like: {"K": {"k": {"k": ... {"k": "v" } ... }}}}
+       */
+      val objectDepth = 1500
+      val input = 0.to(objectDepth).map(_ => """{ "k": """).mkString + """ "value" """ + 0.to(objectDepth).map(_ => '}').mkString
+      intercept[StackOverflowError]{
+        Json(input)
+      }
     }
 
     it("parses an empty object") {

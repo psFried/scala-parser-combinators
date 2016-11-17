@@ -2,7 +2,19 @@ package com.paxata.parsercombinators
 
 
 sealed trait JsonValue {
+  def get(dotSeparatedString: String): JsonValue = {
+    dotSeparatedString.split('.').foldLeft(this){(jsonValue, pathSegment) =>
+      jsonValue.getValue(pathSegment)
+    }
+  }
 
+  def getValue(key: String): JsonValue = {
+    this match {
+      case JsonObject(map) => map.get(key).orNull
+      case JsonArray(seq) => seq(key.toInt)
+      case _ => throw new Exception(s"Can't get value on: ${this}")
+    }
+  }
 }
 
 final case class JsonNumber(num: BigDecimal) extends JsonValue
