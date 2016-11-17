@@ -2,7 +2,7 @@ package com.paxata.parsercombinators
 
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
-import org.scalatest.path
+import org.scalatest.{path}
 
 @RunWith(classOf[JUnitRunner])
 class ParsersTest extends path.FunSpec with StringParsers {
@@ -117,44 +117,23 @@ class ParsersTest extends path.FunSpec with StringParsers {
       }
     }
 
-    describe("json") {
+    it("exmaple") {
+      val input = "12YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
 
-      val jsonString = map(sequence(exactMatch('"'), anyExcept('"'), exactMatch('"'))){values =>
-        values(1) // take just the middle value
+      val number = map(charRange('0'.to('9'))){_.toInt}
+
+      val numberOfYs = flatMap(number) {numYs =>
+        exactMatchString(0.to(numYs).map(_ => 'Y').mkString)
       }
 
-      val digit = '0'.to('9')
-
-      val jsonInt = map(charRange(digit))(_.toInt)
-
-      val jsonFloat = map(
-        sequence(
-          charRange(digit),
-          exactMatch('.'),
-          charRange(digit)
-        )
-      ){sequence =>
-        sequence.mkString.toDouble
-      }
-
-      it("parses a json string") {
-        val input = "\"theString\""
-        val result = jsonString.apply(input).right.get
-        assert("theString" === result.value)
-      }
-
-      it("parses an integer") {
-        val input = "12345"
-        val result = jsonInt.apply(input).right.get
-        assert(12345 === result.value)
-      }
-
-      it("parses a float") {
-        val result = jsonFloat("123.34").right.get
-        assert(123.34 === result.value)
-      }
+      val result = numberOfYs.apply(input).right.get
+      assert("YYYYYYYYYYYYY" === result.value)
     }
   }
 
-}
 
+
+
+
+
+}
